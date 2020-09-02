@@ -25,6 +25,7 @@ def make_request(word):
 def fetch_word(word):
     try:
         url = query_url + word
+        print(url)
         r = requests.get(url, headers={"app_id": APP_ID, "app_key": API_KEY}).json()
         if 'error' in r:
             return {
@@ -93,18 +94,36 @@ def format_result(result):
         }
 
 
+def formatted_example(word, example):
+    text = example if type(example) is str else example['text']
+    text_bold = text.replace(word, f'<b>{word}</b>')
+    word_length = len(text.split(' '))
+    if word_length > 44:
+        try:
+            pin_word = f'<b>{word}</b>'
+            cut_sentence = text.split(word)
+            first_half = ' '.join(cut_sentence[0].split(' ')[-10:])
+            last_half = ' '.join(cut_sentence[1].split(' ')[:10])
+            return '<i> ...' + first_half + pin_word + last_half + '... </i>'
+        except:
+            print("The word was not found in this example.")
+
+    return '<i>' + text_bold + '</i>'
+
 def format_list_result(result):
     try:
         word = result[0]['word']
         definition = ''
-        examples = ''
-        synonyms = ''
+        examples = 'EXAMPLES: <br>'
+        synonyms = 'SYNONYMS: <br>'
         for index, wdef in enumerate (result, 1):
+            if wdef['definition'] == 'error':
+                continue
             if wdef['examples']: 
-                ex = f'{index}. examples: ' + '\n'.join(list(map(lambda t: t['text'], wdef['examples']))) + '\n'
+                ex = f'{index}. ' + '\n'.join(list(map(lambda t: formatted_example(word, t), wdef['examples']))) + '\n'
             else:
                 ex = ''
-            syn = f'{index}. synonyms: ' + ', '.join(wdef['synonyms']) + '\n' if wdef['synonyms'] else ''
+            syn = f'{index}. ' + ', '.join(wdef['synonyms']) + '\n' if wdef['synonyms'] else ''
 
             de = wdef['definition'] if word == 'error' else f'{index}. ' + wdef['definition'][0] + ' \n '
             definition += de
@@ -112,7 +131,7 @@ def format_list_result(result):
             synonyms += syn
 
         relevant_info = {
-            'word': word,
+            'word': '<b>' + word + '</b>',
             'definition': definition,
             'examples': examples,
             'synonyms': synonyms,
@@ -136,13 +155,15 @@ def lookup_words(words):
     for vocab_word in words:
         try:
             word, usage = vocab_word
+            my_example = formatted_example(word, usage)
             result = format_result(fetch_word(word))
             # result can either be a list or a dict.
             result = result if type(result) == list else [result]
             result = format_list_result(result)
-            result['my_example'] = usage
+            col1 = result['word']
+            col2 = '<hr>'.join([result['definition'], result['synonyms'], result['examples'], my_example])
             pp.pprint(result.values())
-            defined_words.append(result.values())
+            defined_words.append([col1, col2])
         except:
             defined_words.append(['Error: Something went wrong.'])
     return defined_words
@@ -155,7 +176,7 @@ def make_db_csv(db_results):
             db_wordwriter.writerow(row)
 
 def consume_db_csv():
-    with open('rest.csv', newline='') as csvfile:
+    with open('db_words_edited.csv', newline='') as csvfile:
         wordreader = csv.reader(csvfile, delimiter=';', quotechar='"')
         return list(wordreader)
 
@@ -164,7 +185,7 @@ def make_csv(rows):
     with open('vocab.csv', 'a', newline='') as csvfile:
         wordwriter = csv.writer(csvfile, delimiter=';',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        wordwriter.writerow(['WORD', 'DEFINITION', 'EXAMPLES', 'SYNONYMS', 'MY_EXAMPLE'])
+        wordwriter.writerow(['WORD', 'DEFINITION'])
         for row in rows:
             wordwriter.writerow(row)
 
@@ -189,7 +210,7 @@ def make_csv(rows):
 #make_csv(api_results)
 ###################
 # TEST INDIVIDUAL WORDS
-#word1 = fetch_word('peaked')
+#word1 = fetch_word('rebarbative')
 #word2 = fetch_word('vituperation')
 #word1f = format_result(word1)
 #word2f = format_result(word2)
